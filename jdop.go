@@ -8,11 +8,12 @@ import (
     // "log"
     "net/http"
     "net/http/httputil"
-    "os"
     "strings"
     "time"
-    "os/exec"
+    "os"
+    //"os/exec"
     "errors"
+    "flag"
 )
 
 const (
@@ -98,32 +99,6 @@ func uploadHandle(w http.ResponseWriter, r *http.Request) {
     }
 }
 
-func main() {
-
-    fmt.Println("starting server!")
-    fmt.Println("https://127.0.0.1:" + server_port)
-
-    // http.Post("/media", uploadHandle)
-    http.HandleFunc("/", defaultHandle)
-    http.HandleFunc("/media", uploadHandle)
-    http.HandleFunc("/post", postCreate)
-
-    //
-    server := &http.Server{
-        Addr: ":" + server_port,
-        // Handler:        handler,
-        ReadTimeout:    10 * time.Second,
-        WriteTimeout:   30 * time.Second,
-        MaxHeaderBytes: 1 << 10,
-
-    }
-    //err := server.ListenAndServe()
-    err := server.ListenAndServeTLS("./jd.crt", "./jd.key")
-    if err != nil {
-        fmt.Println(err)
-        return
-    }
-}
 
 /*--------------UTILS-------------*/
 
@@ -169,12 +144,25 @@ func SaveFileFromRequest(w http.ResponseWriter, r *http.Request, parent string) 
         return "Fail to save file!", http.StatusInternalServerError, err
     }
 
+    //在代码上线之前执行的钩子
+
+
     //上传成功后，直接解压到工程目录
-    out,err := exec.Command( `tar`,`-zxvf`, temp_path, `-C`, unzip_to_path ).Output()
-    fmt.Println("---------->>>", string(out), err, temp_path, unzip_to_path)
-    if err!=nil {
-        return "unzip error", http.StatusInternalServerError, err
+    //out,err := exec.Command( `tar`,`-zxvf`, temp_path, `-C`, unzip_to_path ).Output()
+    //fmt.Println("---------->>>", string(out), err, temp_path, unzip_to_path)
+    //if err!=nil {
+    //    return "unzip error", http.StatusInternalServerError, err
+    //}
+
+    //在代码上线之后执行的钩子
+
+    if Exist(z_hook)==true {
+
+    }else{
+        fmt.Println("no z_hook")
     }
+
+
     //return string(out), http.StatusOK, nil
     return id, http.StatusOK, nil
 }
@@ -224,6 +212,11 @@ func FileHashMD5(path string) (string, error) {
 
 }
 
+func Exist(filename string) bool {
+    _, err := os.Stat(filename)
+    return err == nil || os.IsExist(err)
+}
+
 func debug(data []byte, err error) {
     if err == nil {
         fmt.Printf("%s", data)
@@ -235,5 +228,48 @@ func debug(data []byte, err error) {
 
 }
 
+
+var a_hook,z_hook string
+
+func main() {
+
+    _a := flag.String("a_hook", "", "exec base shell on rsync project code before")
+    _z := flag.String("z_hook", "", "exec base shell on rsync project code end")
+    _h := flag.Bool("h", false, "help")
+    flag.Parse()
+
+    if *_h == true {
+        flag.Usage()
+        os.Exit(0)
+    }
+
+    a_hook = *_a
+    z_hook = *_z
+
+
+    fmt.Println("starting server!")
+    fmt.Println("https://127.0.0.1:" + server_port)
+
+    // http.Post("/media", uploadHandle)
+    http.HandleFunc("/", defaultHandle)
+    http.HandleFunc("/media", uploadHandle)
+    http.HandleFunc("/post", postCreate)
+
+    //
+    server := &http.Server{
+        Addr: ":" + server_port,
+        // Handler:        handler,
+        ReadTimeout:    60 * time.Second,
+        WriteTimeout:   60 * time.Second,
+        MaxHeaderBytes: 1 << 10,
+
+    }
+    //err := server.ListenAndServe()
+    err := server.ListenAndServeTLS("./jd.crt", "./jd.key")
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+}
 
 
