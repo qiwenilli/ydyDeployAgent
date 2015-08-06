@@ -11,13 +11,13 @@ import (
     "strings"
     "time"
     "os"
-    //"os/exec"
+    "os/exec"
     "errors"
     "flag"
 )
 
 const (
-    upload_path string = "."
+    upload_path string = "./abc"
     server_port string = "8090"
 )
 
@@ -68,21 +68,23 @@ func uploadHandle(w http.ResponseWriter, r *http.Request) {
         // ip := strings.Split(r.RemoteAddr, ":")[0]
         printRequest(w, r, false)
         msg, code, err := SaveFileFromRequest(w, r, upload_path)
+        
         if err != nil {
             if code <= 0 {
                 code = http.StatusInternalServerError
-
             }
             Error(w, msg, code, err)
-            return
-
+        }else{
+            Error(w, "ok:"+msg, http.StatusOK, nil)
         }
+        return
+
         temp_path := upload_path + "/" + msg
         //md5
         id, _ := FileHashMD5(temp_path)
         real_path := upload_path + "/" + id
         //check exists
-        if PathExist(real_path) {
+        if Exist(real_path) {
             Error(w, id, http.StatusCreated, nil)
             return
 
@@ -98,6 +100,59 @@ func uploadHandle(w http.ResponseWriter, r *http.Request) {
         //}
     }
 }
+
+
+//回滚
+func rollback(w http.ResponseWriter, r *http.Request) {
+    if r.Method == "GET" {
+        http.Error(w, "403", 403)
+        return
+
+    } else if r.Method == "OPTIONS" {
+        //w.Header().Set("Access-Control-Allow-Origin", "*")
+        //w.Header().Set("Access-Control-Allow-Methods", "POST,OPTIONS")
+        //w.Header().Set("Access-Control-Allow-Headers", "content-type")
+        //w.Header().Set("Access-Control-Max-Age", "30")
+
+    } else if r.Method == "POST" {
+        printRequest(w, r, false)
+
+        tag_name := r.FormValue("tag_name")
+        unzip_to_path := r.FormValue("path")
+
+        //
+        temp_path := upload_path + "/" + tag_name 
+
+        //
+        if len(tag_name)<=1 {
+            http.Error(w, "err:tag_name is nil", http.StatusInternalServerError)
+        }else if Exist(unzip_to_path)==false{
+            http.Error(w, "err:server config path error", http.StatusInternalServerError)
+        }else if Exist(temp_path)==false{
+            http.Error(w, "err:backup tag not exist", http.StatusInternalServerError)
+        }else{
+        
+            //在代码上线之前执行的钩子
+
+
+            //上传成功后，直接解压到工程目录
+            out,err := exec.Command( `tar`,`-zxvf`, temp_path, `-C`, unzip_to_path ).Output()
+            fmt.Println("---------->>>", string(out), err, temp_path, unzip_to_path)
+            if err!=nil {
+                http.Error(w, "err:unzip error", http.StatusInternalServerError)
+                return
+            }
+
+            //在代码上线之后执行的钩子
+            if Exist(z_hook)==true {
+                exec.Command( `/bin/bash`, z_hook ).Output()
+            }else{
+                fmt.Println("no z_hook")
+            }
+        }
+    }
+}
+
 
 
 /*--------------UTILS-------------*/
@@ -147,17 +202,22 @@ func SaveFileFromRequest(w http.ResponseWriter, r *http.Request, parent string) 
     //在代码上线之前执行的钩子
 
 
+    //判断布署的项目目录是否存在
+    if Exist(unzip_to_path)==false {
+        return "dir not exist", http.StatusInternalServerError, errors.New("project dir no exist")
+    }
+
     //上传成功后，直接解压到工程目录
-    //out,err := exec.Command( `tar`,`-zxvf`, temp_path, `-C`, unzip_to_path ).Output()
-    //fmt.Println("---------->>>", string(out), err, temp_path, unzip_to_path)
-    //if err!=nil {
-    //    return "unzip error", http.StatusInternalServerError, err
-    //}
+    out,err := exec.Command( `tar`,`-zxvf`, temp_path, `-C`, unzip_to_path ).Output()
+    fmt.Println("---------->>>", string(out), err, temp_path, unzip_to_path)
+    if err!=nil {
+        return "err:unzip error", http.StatusInternalServerError, err
+    }
 
     //在代码上线之后执行的钩子
 
     if Exist(z_hook)==true {
-
+        exec.Command( `/bin/bash`, z_hook ).Output()
     }else{
         fmt.Println("no z_hook")
     }
@@ -185,16 +245,6 @@ func Error(w http.ResponseWriter, msg string, code int, err error) {
 
     }
     http.Error(w, msg, code)
-
-}
-
-func PathExist(_path string) bool {
-    _, err := os.Stat(_path)
-    if err != nil && os.IsNotExist(err) {
-        return false
-
-    }
-    return true
 
 }
 
@@ -254,6 +304,7 @@ func main() {
     http.HandleFunc("/", defaultHandle)
     http.HandleFunc("/media", uploadHandle)
     http.HandleFunc("/post", postCreate)
+    http.HandleFunc("/back", rollback)
 
     //
     server := &http.Server{
