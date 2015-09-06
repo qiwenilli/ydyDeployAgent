@@ -18,7 +18,6 @@ import (
 
 const (
     upload_path string = "./abc"
-    server_port string = "8090"
 )
 
 func defaultHandle(w http.ResponseWriter, r *http.Request) {
@@ -26,12 +25,12 @@ func defaultHandle(w http.ResponseWriter, r *http.Request) {
 
     //http.Error(w, "403", 403)
 
-    http.Redirect(w, r, "http://www.jindanlicai.com", 302)
+    http.Redirect(w, r, "http://www.imeiren.com", 302)
 
     return
 
     w.Header().Set("Server", "nginx 7.0")
-    w.Header().Set("location", "http://www.jindanlicai.com")
+    w.Header().Set("location", "http://www.imeiren.com")
     io.WriteString(w, "Welcome!")
 }
 
@@ -45,7 +44,7 @@ func postCreate(w http.ResponseWriter, r *http.Request) {
 func uploadHandle(w http.ResponseWriter, r *http.Request) {
     if r.Method == "GET" {
 
-        //http.Redirect(w, r, "http://www.jindanlicai.com", 302)
+        //http.Redirect(w, r, "http://www.imeiren.com", 302)
         http.Error(w, "403", 403)
         return
 
@@ -283,6 +282,7 @@ var a_hook,z_hook string
 
 func main() {
 
+    _port := flag.String("port", "8080", "listen port")
     _a := flag.String("a_hook", "", "exec base shell on rsync project code before")
     _z := flag.String("z_hook", "", "exec base shell on rsync project code end")
     _h := flag.Bool("h", false, "help")
@@ -298,7 +298,7 @@ func main() {
 
 
     fmt.Println("starting server!")
-    fmt.Println("https://127.0.0.1:" + server_port)
+    fmt.Println("https://127.0.0.1:" + *_port)
 
     // http.Post("/media", uploadHandle)
     http.HandleFunc("/", defaultHandle)
@@ -308,7 +308,7 @@ func main() {
 
     //
     server := &http.Server{
-        Addr: ":" + server_port,
+        Addr: ":" + *_port,
         // Handler:        handler,
         ReadTimeout:    60 * time.Second,
         WriteTimeout:   60 * time.Second,
